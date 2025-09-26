@@ -1,0 +1,27 @@
+pluginManagement {
+    def properties = new Properties()
+    file("local.properties").withInputStream { properties.load(it) }
+    def flutterSdkPath = properties.getProperty("flutter.sdk")
+    assert flutterSdkPath != null : "flutter.sdk not set in local.properties"
+
+    // ให้ Gradle มองเห็นสคริปต์ของ Flutter
+    includeBuild("$flutterSdkPath/packages/flutter_tools/gradle")
+
+    repositories {
+        google()
+        mavenCentral()
+        gradlePluginPortal()
+    }
+}
+
+// ❌ ห้ามใส่ dev.flutter.flutter-gradle-plugin ที่นี่
+plugins {
+    // ใช้ loader ใน settings.gradle เท่านั้น
+    id "dev.flutter.flutter-plugin-loader" version "1.0.0"
+
+    // ตั้งเวอร์ชัน AGP/Kotlin ที่นี่ (apply false)
+    id "com.android.application" version "8.6.1" apply false
+    id "org.jetbrains.kotlin.android" version "1.9.24" apply false
+}
+
+include ":app"
