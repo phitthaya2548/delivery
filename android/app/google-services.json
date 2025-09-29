@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "487154889985",
+    "project_id": "flutter-feature-wax",
+    "storage_bucket": "flutter-feature-wax.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:487154889985:android:44e1c145200b921e511700",
+        "android_client_info": {
+          "package_name": "com.example.deliveryrpoject"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyC0WylN2VTy9_WW_HS2GJxsDK_Bw9wj-So"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

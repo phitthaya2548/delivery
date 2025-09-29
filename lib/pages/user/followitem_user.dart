@@ -1,12 +1,16 @@
 import 'dart:convert';
 import 'dart:developer';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:deliveryrpoject/config/config.dart';
 import 'package:deliveryrpoject/models/res/res_detail_shipment.dart';
+import 'package:deliveryrpoject/pages/service/firestore_location_service.dart';
+import 'package:deliveryrpoject/pages/user/map_user.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:google_maps_flutter/google_maps_flutter.dart';
 import 'package:http/http.dart' as http;
 
-/// หน้าติดตามพัสดุ
 class FollowitemUser extends StatefulWidget {
   const FollowitemUser({Key? key, required this.shipmentId}) : super(key: key);
 
@@ -17,19 +21,41 @@ class FollowitemUser extends StatefulWidget {
 }
 
 class _FollowitemUserState extends State<FollowitemUser> {
-  // สีหลัก
   static const _orange = Color(0xFFFD8700);
   static const _bg = Color(0xFFF4F4F4);
 
+  GoogleMapController? _mapController;
+  FirestoreLocationService firestoreService = FirestoreLocationService(1);
   String _baseUrl = '';
   bool _loading = true;
   String? _error;
   ShipmentDetail? _data;
-
+  double? _riderLat;
+  double? _riderLng;
   @override
+
+  /// Called when the widget is inserted into the tree.
+  /// It initializes the map controller and fetches the detail shipment data.
   void initState() {
     super.initState();
     _initAndFetch();
+    _fetchRiderLocation();
+  }
+
+  void _fetchRiderLocation() {
+    firestoreService.streamSelf().listen((snapshot) {
+      if (snapshot.exists) {
+        final riderLocation = snapshot.data();
+        final gps = riderLocation?['gps'] as GeoPoint?;
+        if (gps != null) {
+          setState(() {
+            _riderLat = gps.latitude;
+            _riderLng = gps.longitude;
+          });
+          log('Rider location updated: ${_riderLat}, ${_riderLng}');
+        }
+      }
+    });
   }
 
   Future<void> _initAndFetch() async {
@@ -54,6 +80,7 @@ class _FollowitemUserState extends State<FollowitemUser> {
       _loading = true;
       _error = null;
     });
+
     try {
       final uri = Uri.parse('$_baseUrl/shipments/${widget.shipmentId}');
       final res = await http.get(uri);
@@ -63,6 +90,7 @@ class _FollowitemUserState extends State<FollowitemUser> {
           j['item'] as Map<String, dynamic>,
           baseUrl: _baseUrl,
         );
+
         setState(() {
           _data = item;
           _loading = false;
@@ -198,25 +226,61 @@ class _FollowitemUserState extends State<FollowitemUser> {
               ],
             ),
           ),
-          const SizedBox(height: 12),
 
-          // แผนที่ (เดโม่: ใช้รูป/placeholder; ถ้ามีพิกัดคุณสามารถฝัง GoogleMap แทน)
+          const SizedBox(height: 12),
           _card(
-            child: ClipRRect(
-              borderRadius: BorderRadius.circular(10),
-              child: AspectRatio(
-                aspectRatio: 4 / 3,
-                child: d.mapImageUrl != null
-                    ? Image.network(
-                        d.mapImageUrl!,
-                        fit: BoxFit.cover,
-                        errorBuilder: (_, __, ___) => _mapPlaceholder(),
-                        loadingBuilder: (c, w, p) =>
-                            p == null ? w : _mapPlaceholder(loading: true),
-                      )
-                    : _mapPlaceholder(),
-              ),
-            ),
+            child: SizedBox(
+                height: 250,
+                child: // GoogleMap widget
+                    GoogleMap(
+                  initialCameraPosition: CameraPosition(
+                    target: LatLng(d.senderLat ?? 0.0, d.senderLng ?? 0.0),
+                    zoom: 14.0,
+                  ),
+                  markers: {
+                    // Sender Marker
+                    Marker(
+                      markerId: MarkerId('sender'),
+                      position: LatLng(d.senderLat ?? 0.0, d.senderLng ?? 0.0),
+                      infoWindow: InfoWindow(
+                        title: 'Sender',
+                        snippet: 'This is the sender location',
+                      ),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(
+                          BitmapDescriptor.hueBlue), // Custom icon color (blue)
+                    ),
+
+                    // Receiver Marker
+                    Marker(
+                      markerId: MarkerId('receiver'),
+                      position:
+                          LatLng(d.receiverLat ?? 0.0, d.receiverLng ?? 0.0),
+                      infoWindow: InfoWindow(
+                        title: 'Receiver',
+                        snippet: 'This is the receiver location',
+                      ),
+                      icon: BitmapDescriptor.defaultMarkerWithHue(
+                          BitmapDescriptor
+                              .hueGreen), // Custom icon color (green)
+                    ),
+
+                    // Rider Marker (if available)
+                    if (_riderLat != null && _riderLng != null)
+                      Marker(
+                        markerId: MarkerId('rider'),
+                        position: LatLng(_riderLat!, _riderLng!),
+                        infoWindow: InfoWindow(
+                          title: 'Rider',
+                          snippet: 'This is the rider\'s current location',
+                        ),
+                        icon: BitmapDescriptor.defaultMarkerWithHue(
+                            BitmapDescriptor.hueRed), // Custom icon color (red)
+                      ),
+                  },
+                  onMapCreated: (GoogleMapController controller) {
+                    _mapController = controller;
+                  },
+                )),
           ),
           const SizedBox(height: 12),
 
@@ -266,7 +330,7 @@ class _FollowitemUserState extends State<FollowitemUser> {
                           style: TextStyle(
                               fontWeight: FontWeight.w700, fontSize: 15)),
                       const SizedBox(height: 6),
-                       _rowIconText(
+                      _rowIconText(
                           Icons.person_2_outlined, d.receiverName ?? '-'),
                       const SizedBox(height: 4),
                       _rowIconText(Icons.phone, d.receiverPhone ?? '-'),
@@ -373,13 +437,17 @@ class _FollowitemUserState extends State<FollowitemUser> {
       alignment: Alignment.center,
       child: loading
           ? const CircularProgressIndicator()
-          : const Text('แผนที่ / รูปเส้นทาง'),
+          : TextButton(
+              child: const Text('แผนที่ / รูปเส้นทาง'),
+              onPressed: () {
+                Get.to(() => const MapUser());
+              },
+            ),
     );
   }
 
   /// ไทม์ไลน์สถานะ (1..4)
   Widget _statusTimeline(String status) {
-    // แปลงสถานะเป็นลำดับ
     final step = switch (status) {
       '1' => 1,
       '2' => 2,

@@ -2,14 +2,11 @@ import 'dart:developer';
 import 'dart:io';
 
 import 'package:deliveryrpoject/config/config.dart';
-// ใช้โมเดล Address/ResUserAddress ด้วย prefix ให้ชัดเจน
 import 'package:deliveryrpoject/models/res/res_get_user_address.dart'
     as resModel;
 import 'package:deliveryrpoject/models/res/res_profile.dart';
 import 'package:deliveryrpoject/pages/login.dart';
 import 'package:deliveryrpoject/pages/sesstionstore.dart';
-// ถ้าในไฟล์นี้ (address_user.dart) เคยมี class ชื่อ Address อยู่ ให้ซ่อนไป:
-// import 'package:deliveryrpoject/pages/user/address_user.dart' hide Address;
 import 'package:deliveryrpoject/pages/user/address_user.dart';
 import 'package:deliveryrpoject/pages/user/widgets/appbarheader.dart';
 import 'package:flutter/material.dart';

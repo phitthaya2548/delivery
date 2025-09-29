@@ -1,6 +1,9 @@
+import 'dart:convert';
+
 import 'package:deliveryrpoject/config/config.dart';
 import 'package:deliveryrpoject/models/res/res_shipment_rider.dart';
 import 'package:deliveryrpoject/pages/rider/detail_item.dart';
+import 'package:deliveryrpoject/pages/sesstionstore.dart';
 import 'package:deliveryrpoject/pages/user/widgets/appbarheader.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
@@ -17,6 +20,7 @@ class _HomeRiderState extends State<HomeRider> {
   bool loading = true;
   String? error;
   List<Shipment> shipments = [];
+  int? riderId;
 
   @override
   void initState() {
@@ -28,8 +32,47 @@ class _HomeRiderState extends State<HomeRider> {
     final cfg = await Configuration.getConfig();
     baseUrl = cfg['apiEndpoint'];
     await _fetch();
+    final auth = SessionStore.getAuth();
+    if (auth != null) {
+      riderId = auth['userId'];
+    }
   }
 
+  // Accept the shipment and update its status
+  Future<void> _acceptShipment(int shipmentId) async {
+    try {
+      final response = await http.post(
+        Uri.parse(
+            '$baseUrl/shipments/accept'), // URL for accepting the shipment
+        headers: {'Content-Type': 'application/json'},
+        body: jsonEncode({
+          'rider_id': riderId, // riderId from session or logged-in data
+          'shipment_id': shipmentId,
+        }),
+      );
+
+      final responseBody = jsonDecode(response.body);
+      if (response.statusCode == 200 && responseBody['success'] == true) {
+        // Shipment accepted
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('งานถูกยอมรับเรียบร้อยแล้ว')),
+        );
+        await _fetch(); // Refresh the data after accepting the shipment
+      } else {
+        // Error occurred
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text(responseBody['message'] ?? 'เกิดข้อผิดพลาด')),
+        );
+      }
+    } catch (e) {
+      print('Error accepting shipment: $e');
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('ไม่สามารถรับงานได้ในขณะนี้')),
+      );
+    }
+  }
+
+  // Fetch shipments data
   Future<void> _fetch() async {
     setState(() {
       loading = true;
@@ -84,20 +127,16 @@ class _HomeRiderState extends State<HomeRider> {
                       final s = shipments[index - 1];
                       return _JobCard(
                         title: 'Delivery WarpSong',
-                        photoUrl: s.lastPhoto.url, // จาก model
+                        photoUrl: s.lastPhoto.url, // From model
                         itemName: s.itemName,
-                        pickupName: s.sender.name, // ชื่อผู้ส่ง
+                        pickupName: s.sender.name, // Sender's name
                         pickupAddress:
-                            s.sender.address.addressText, // ที่อยู่รับของ
-                        deliveryName: s.receiver.name, // ชื่อผู้รับ
+                            s.sender.address.addressText, // Pickup address
+                        deliveryName: s.receiver.name, // Receiver's name
                         deliveryAddress:
-                            s.receiver.address.addressText, // ที่อยู่ปลายทาง
+                            s.receiver.address.addressText, // Delivery address
                         onAccept: () {
-                          // TODO: เชื่อม API รับงานจริงภายหลัง (POST /shipments/:id/accept)
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            const SnackBar(
-                                content: Text('ยังไม่เปิดรับงานในหน้านี้')),
-                          );
+                          _acceptShipment(s.shipmentId); // Accept the shipment
                         },
                         onDetail: () {
                           Navigator.push(
@@ -118,12 +157,13 @@ class _HomeRiderState extends State<HomeRider> {
 
 /* ======================= UI Components ======================= */
 
+// Job card widget to display shipment details
 class _JobCard extends StatelessWidget {
   final String title;
   final String? photoUrl;
   final String itemName;
 
-  // ข้อมูล “รับที่/ส่งที่”
+  // Pickup and delivery info
   final String pickupName;
   final String pickupAddress;
   final String deliveryName;
@@ -165,7 +205,7 @@ class _JobCard extends StatelessWidget {
         padding: const EdgeInsets.all(12),
         child: Column(
           children: [
-            // แถวบน: ไอคอน + ชื่อระบบ
+            // Top row: Icon + title
             Row(
               children: [
                 Icon(Icons.inventory_2_outlined, color: Colors.orange.shade700),
@@ -181,7 +221,7 @@ class _JobCard extends StatelessWidget {
             ),
             const SizedBox(height: 10),
 
-            // เนื้อหา: รูป + รายละเอียด (รับที่/ส่งที่)
+            // Content: Image + pickup/delivery details
             Row(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
@@ -191,7 +231,7 @@ class _JobCard extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      // ชื่อพัสดุ
+                      // Item name
                       Text(
                         itemName,
                         style: const TextStyle(
@@ -201,7 +241,7 @@ class _JobCard extends StatelessWidget {
                       ),
                       const SizedBox(height: 6),
 
-                      // รับที่ (ผู้ส่ง)
+                      // Pickup address
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -238,6 +278,7 @@ class _JobCard extends StatelessWidget {
 
                       const SizedBox(height: 6),
 
+                      // Delivery address
                       Row(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
@@ -279,7 +320,7 @@ class _JobCard extends StatelessWidget {
 
             const SizedBox(height: 10),
 
-            // ปุ่ม
+            // Buttons
             Row(
               children: [
                 Expanded(
@@ -318,6 +359,7 @@ class _JobCard extends StatelessWidget {
   }
 }
 
+// Thumbnail widget
 class _Thumb extends StatelessWidget {
   final String? url;
   const _Thumb({Key? key, this.url}) : super(key: key);
@@ -349,6 +391,7 @@ class _Thumb extends StatelessWidget {
   }
 }
 
+// Error view widget
 class _ErrorView extends StatelessWidget {
   final String message;
   final VoidCallback onRetry;
