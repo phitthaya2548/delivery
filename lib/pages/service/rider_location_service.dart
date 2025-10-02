@@ -30,7 +30,7 @@ class RiderLocationService {
   }) async {
     // Ensure the API URL is loaded before using it
     if (apiUrl == null) {
-      print("API URL not initialized");
+      log("API URL not initialized");
       return false;
     }
 
@@ -44,11 +44,11 @@ class RiderLocationService {
           'gps_lng': longitude,
         }),
       );
-      print("Response status: ${response.statusCode}");
-      print("Response body: ${response.body}");
+      log("Response status: ${response.statusCode}");
+      log("Response body: ${response.body}");
       return response.statusCode == 200;
     } catch (e) {
-      print("Error saving location: $e");
+      log("Error saving location: $e");
       return false;
     }
   }

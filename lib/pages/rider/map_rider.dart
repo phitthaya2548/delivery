@@ -5,7 +5,7 @@ import 'dart:developer';
 import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:deliveryrpoject/config/config.dart';
 import 'package:deliveryrpoject/models/res/res_getlocation_byrider.dart';
-import 'package:deliveryrpoject/pages/service/firestore_location_service.dart';
+import 'package:deliveryrpoject/pages/service/firestore_service.dart';
 import 'package:deliveryrpoject/pages/service/rider_location_service.dart';
 import 'package:deliveryrpoject/pages/sesstionstore.dart';
 import 'package:flutter/material.dart';
@@ -85,14 +85,14 @@ class _MapRiderState extends State<MapRider> {
     try {
       riderIcon = await BitmapDescriptor.fromAssetImage(
         ImageConfiguration(
-          size: Size(50, 60), // You can define the size here
-          devicePixelRatio: 2, // You can set the device pixel ratio for scaling
+          size: Size(50, 60),
+          devicePixelRatio: 2,
         ),
-        'assets/images/car.png', // Correct path to the rider icon
+        'assets/images/car.png',
       );
-      setState(() {}); // Trigger UI update after loading the custom icon
+      setState(() {});
     } catch (e) {
-      print('Error loading custom icon: $e'); // Handle errors if any
+      print('Error loading custom icon: $e');
     }
   }
 
@@ -125,21 +125,6 @@ class _MapRiderState extends State<MapRider> {
       }
     } catch (e) {
       log('Error fetching shipment location data: $e');
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Row(
-              children: [
-                Icon(Icons.error_outline, color: Colors.white),
-                SizedBox(width: 8),
-                Expanded(child: Text('ไม่สามารถเชื่อมต่อเซิร์ฟเวอร์: $e')),
-              ],
-            ),
-            backgroundColor: Colors.red,
-            behavior: SnackBarBehavior.floating,
-          ),
-        );
-      }
     }
   }
 
@@ -160,8 +145,8 @@ class _MapRiderState extends State<MapRider> {
               .map<LatLng>((coord) => LatLng(coord[1], coord[0]))
               .toList();
 
-          final duration = route['duration']; // in seconds
-          final distance = route['distance']; // in meters
+          final duration = route['duration'];
+          final distance = route['distance'];
           final legs = route['legs'];
 
           String instructions = '';
@@ -196,7 +181,7 @@ class _MapRiderState extends State<MapRider> {
     if (riderPos == null) return;
 
     try {
-      // Determine which route to show based on pickup status
+      
       LatLng destination = isPickedUp ? receiverPos! : senderPos!;
 
       if (destination != null) {
@@ -205,7 +190,6 @@ class _MapRiderState extends State<MapRider> {
         setState(() {
           currentActiveRoute = routeData['points'];
 
-          // Update route information
           final duration = routeData['duration'];
           final distance = routeData['distance'];
 
@@ -213,7 +197,6 @@ class _MapRiderState extends State<MapRider> {
           estimatedDistance = _formatDistance(distance);
           routeInstructions = routeData['instructions'];
 
-          // Update individual routes for reference
           if (isPickedUp) {
             routeToReceiver = routeData['points'];
           } else {
@@ -322,14 +305,23 @@ class _MapRiderState extends State<MapRider> {
     }
   }
 
-  void _throttleSaveToFirestore(LatLng p) {
-    if (_pushThrottle?.isActive ?? false) return;
+Future<void> _throttleSaveToFirestore(LatLng p) async {
+  if (riderId == null) return;
 
-    _pushThrottle = Timer(const Duration(seconds: 2), () {});
-    _fs.save(lat: p.latitude, lng: p.longitude);
-    _rls.saveLocation(
-        riderId: riderId!, latitude: p.latitude, longitude: p.longitude);
+  try {
+    await Future.wait([
+      _fs.save(lat: p.latitude, lng: p.longitude),
+      _rls.saveLocation(
+        riderId: riderId!,
+        latitude: p.latitude,
+        longitude: p.longitude,
+      ),
+    ]);
+  } catch (e, st) {
+    log('Save location failed: $e\n$st');
   }
+}
+
 
   void _togglePickupStatus() {
     setState(() {
@@ -395,7 +387,7 @@ class _MapRiderState extends State<MapRider> {
                   markerId: MarkerId('sender'),
                   position: senderPos!,
                   infoWindow: InfoWindow(
-                    title: isPickedUp ? '✅ รับสินค้าแล้ว' : '📦 จุดรับสินค้า',
+                    title: isPickedUp ? ' รับสินค้าแล้ว' : '📦 จุดรับสินค้า',
                     snippet: shipmentData?.sender.name ?? 'ผู้ส่ง',
                   ),
                   icon: BitmapDescriptor.defaultMarkerWithHue(
@@ -422,16 +414,17 @@ class _MapRiderState extends State<MapRider> {
                 ),
             },
             polylines: {
-              // Active route (highlighted)
+
               if (currentActiveRoute.isNotEmpty)
                 Polyline(
                   polylineId: PolylineId('activeRoute'),
                   points: currentActiveRoute,
-                  color: isPickedUp ? Colors.red : Colors.green,
+                  color:  Colors.blue,
                   width: 6,
+                  geodesic: true,
                   patterns: [],
                 ),
-              // Inactive routes (dimmed)
+              
               if (!isPickedUp && routeToReceiver.isNotEmpty)
                 Polyline(
                   polylineId: PolylineId('routeToReceiver'),
@@ -451,7 +444,7 @@ class _MapRiderState extends State<MapRider> {
             },
           ),
 
-          // Route Information Panel
+
           if (estimatedTime != null && estimatedDistance != null)
             Positioned(
               top: 100,

@@ -6,7 +6,7 @@ import 'package:deliveryrpoject/models/res/res_get_user_address.dart' as resMode
 import 'package:deliveryrpoject/pages/sesstionstore.dart';
 import 'package:flutter/material.dart';
 import 'package:http/http.dart' as http;
-import 'package:geocoding/geocoding.dart'; // NEW: สำหรับแปลงที่อยู่ -> พิกัด
+import 'package:geocoding/geocoding.dart';
 
 class AddressUser extends StatefulWidget {
   const AddressUser({Key? key}) : super(key: key);

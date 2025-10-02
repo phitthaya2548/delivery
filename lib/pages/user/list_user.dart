@@ -1,8 +1,9 @@
 import 'dart:convert';
 import 'dart:developer';
 
+import 'package:cloud_firestore/cloud_firestore.dart';
 import 'package:deliveryrpoject/config/config.dart';
-import 'package:deliveryrpoject/models/res/res_shipment.dart'; // ต้องมี field thumbUrl ในโมเดล
+import 'package:deliveryrpoject/models/res/res_shipment.dart'; // ต้องมี field: shipmentId, status(int), itemName, detailText, thumbUrl, statusText/statusColor (optional)
 import 'package:deliveryrpoject/pages/sesstionstore.dart';
 import 'package:deliveryrpoject/pages/user/followitem_user.dart';
 import 'package:deliveryrpoject/pages/user/widgets/appbarheader.dart';
@@ -140,8 +141,7 @@ class _ListUserState extends State<ListUser> {
     }
   }
 
-  /// ถ้า backend ส่ง path มา (เช่น /uploads/xx.png) ให้ต่อเป็น absolute ด้วย baseUrl
-
+  // ---------- UI ----------
   @override
   Widget build(BuildContext context) {
     return DefaultTabController(
@@ -199,7 +199,6 @@ class _ListUserState extends State<ListUser> {
     );
   }
 
-  // ---------- List builder ----------
   Widget _buildList({
     required IconData titleIcon,
     required String titleText,
@@ -245,13 +244,16 @@ class _ListUserState extends State<ListUser> {
           );
         }
         final it = items[i - 1];
-        return _buildOrderCard(
+
+        // 🔥 แทนที่จะเรนเดอร์การ์ด static เราใช้ OrderCardRealtime
+        // ใส่ shipmentId + ค่าเริ่มต้นจาก backend
+        return OrderCardRealtime(
+          shipmentId: it.shipmentId.toString(),
+          initialStatus: it.status,      // int (1..4) จาก backend
+          initialThumbUrl: it.thumbUrl,  // may be null
           title: 'Delivery WarpSong',
-          badgeText: it.statusText,
-          badgeColor: it.statusColor,
           itemName: it.itemName,
           detail: it.detailText,
-          imageUrl: it.thumbUrl,
           onTrack: () {
             Navigator.push(
               context,
@@ -264,14 +266,99 @@ class _ListUserState extends State<ListUser> {
       },
     );
   }
+}
 
-  static Widget _buildOrderCard({
-    required String title,
+/// วิดเจ็ตการ์ดที่ดึง “สถานะและรูป” แบบ realtime จาก Firestore: shipments/{shipmentId}
+class OrderCardRealtime extends StatelessWidget {
+  const OrderCardRealtime({
+    super.key,
+    required this.shipmentId,
+    required this.initialStatus,
+    required this.initialThumbUrl,
+    required this.title,
+    required this.itemName,
+    required this.detail,
+    required this.onTrack,
+  });
+
+  final String shipmentId;
+  final int initialStatus;
+  final String? initialThumbUrl;
+
+  final String title;
+  final String itemName;
+  final String detail;
+  final VoidCallback onTrack;
+
+  static const _orange = Color(0xFFFD8700);
+  static const _lightOrangeBg = Color(0xFFFFF5E9);
+  static const _cardBorder = Color(0xFFFFC37D);
+
+
+  static String statusText(int s) {
+    switch (s) {
+      case 1:
+        return 'รอไรเดอร์มารับสินค้า';
+      case 2:
+        return 'ไรเดอร์รับงาน (กำลังเดินทางมารับสินค้า)';
+      case 3:
+        return 'ไรเดอร์รับสินค้าแล้วและกำลังเดินทางไปส่ง';
+      case 4:
+        return 'ไรเดอร์นำส่งสินค้าแล้ว';
+      default:
+        return 'ไม่ทราบสถานะ ($s)';
+    }
+  }
+
+  static Color statusColor(int s) {
+    switch (s) {
+      case 1:
+        return Colors.grey;
+      case 2:
+        return Colors.blue;
+      case 3:
+        return Colors.orange;
+      case 4:
+        return Colors.green;
+      default:
+        return Colors.grey;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final doc =
+        FirebaseFirestore.instance.collection('shipments').doc(shipmentId);
+
+    return StreamBuilder<DocumentSnapshot<Map<String, dynamic>>>(
+      stream: doc.snapshots(),
+      builder: (context, snap) {
+        // ค่าจาก Firestore (ถ้ามี)
+        int status = initialStatus;
+        String? thumbUrl = initialThumbUrl;
+
+        if (snap.hasData && snap.data!.exists) {
+          final m = snap.data!.data();
+          final st = (m?['status'] as num?)?.toInt();
+          if (st != null && st >= 1 && st <= 4) status = st;
+          final ph = m?['item_photo_url']?.toString();
+          if (ph != null && ph.isNotEmpty) thumbUrl = ph;
+        }
+
+        return _card(
+          context: context,
+          badgeText: statusText(status),
+          badgeColor: statusColor(status),
+          imageUrl: thumbUrl,
+        );
+      },
+    );
+  }
+
+  Widget _card({
+    required BuildContext context,
     required String badgeText,
     required Color badgeColor,
-    required String itemName,
-    required String detail,
-    required VoidCallback onTrack,
     String? imageUrl,
   }) {
     return Container(
@@ -332,7 +419,7 @@ class _ListUserState extends State<ListUser> {
                   child: SizedBox(
                     width: 64,
                     height: 64,
-                    child: imageUrl == null
+                    child: (imageUrl == null || imageUrl.isEmpty)
                         ? Container(
                             color: Colors.black12,
                             alignment: Alignment.center,

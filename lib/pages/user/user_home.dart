@@ -19,11 +19,10 @@ class Homeuser extends StatefulWidget {
   State<Homeuser> createState() => _HomeuserState();
 }
 
-/// รายการที่จะส่งแบบ batch (แนบรูปด้วย base64 เพียว ๆ)
+/// ส่งแบบ batch แนบรูป base64 (ไม่เขียนลง Firebase)
 class _HomeuserState extends State<Homeuser> {
   // Theme
   static const _orange = Color(0xFFFD8700);
-  static const _lightOrange = Color(0xFFFFDE98);
   static const _bg = Color(0xFFF4F4F4);
 
   // Controllers
@@ -72,6 +71,7 @@ class _HomeuserState extends State<Homeuser> {
         userid = (auth?['userId'] as num?)?.toInt() ?? 0;
         phoneid = auth?['phoneId']?.toString();
       });
+      fetchShipments();
     } catch (e) {
       log('init error: $e');
     }
@@ -85,7 +85,15 @@ class _HomeuserState extends State<Homeuser> {
     super.dispose();
   }
 
-  // ---------- รูปภาพ ----------
+  Future<void> fetchShipments() async {
+    final uri = Uri.parse('$url/shipments');
+    final res = await http.get(uri).timeout(const Duration(seconds: 20));
+
+    if (res.statusCode == 200) {
+      log('fetchShipments: ${res.body}');
+    }
+  }
+
   Future<void> _pickPhoto() async {
     showModalBottomSheet(
       context: context,
@@ -122,7 +130,7 @@ class _HomeuserState extends State<Homeuser> {
     );
   }
 
-  /// ✅ แปลง File -> base64 "เพียว ๆ" (ไม่มี data:image/...;base64,)
+  /// ✅ แปลง File -> base64 "เพียว ๆ"
   Future<String?> _toBase64(File file) async {
     try {
       final bytes = await file.readAsBytes();
@@ -133,7 +141,6 @@ class _HomeuserState extends State<Homeuser> {
     }
   }
 
-  /// ✅ สำหรับพรีวิวในตะกร้า: decode base64 เพียว ๆ
   Uint8List? _bytesFromBase64(String base64str) {
     try {
       return base64Decode(base64str);
@@ -142,7 +149,6 @@ class _HomeuserState extends State<Homeuser> {
     }
   }
 
-  // ---------- ค้นหาผู้รับ ----------
   Future<void> _searchReceiver() async {
     final raw = _searchPhone.text.trim();
     if (raw.isEmpty) {
@@ -231,15 +237,20 @@ class _HomeuserState extends State<Homeuser> {
       return;
     }
 
-    String? b64;
-    if (_photo != null) {
-      b64 = await _toBase64(_photo!); // ✅ ได้ base64 เพียว ๆ
-      if (b64 == null) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('แปลงรูปไม่สำเร็จ')),
-        );
-        return;
-      }
+    // ✅ บังคับต้องมีรูป
+    if (_photo == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('กรุณาแนบรูปสินค้าก่อนเพิ่มเข้าตะกร้า')),
+      );
+      return;
+    }
+
+    final b64 = await _toBase64(_photo!); // ✅ base64 เพียว ๆ
+    if (b64 == null) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('แปลงรูปไม่สำเร็จ')),
+      );
+      return;
     }
 
     setState(() {
@@ -248,7 +259,7 @@ class _HomeuserState extends State<Homeuser> {
         deliveryAddressId: _rcvAddressId!,
         itemName: name,
         itemDescription: desc.isEmpty ? "—" : desc,
-        photoBase64: b64, // ✅ ส่ง base64 เพียว ๆ
+        photoBase64: b64,
       ));
       _productName.clear();
       _productDetail.clear();
@@ -313,7 +324,7 @@ class _HomeuserState extends State<Homeuser> {
       if (res.statusCode == 200) {
         final data = jsonDecode(res.body) as Map<String, dynamic>;
         if (data['success'] == true) {
-          final ids = (data['shipment_ids'] as List).join(', ');
+          final ids = (data['shipment_ids'] as List?)?.join(', ') ?? '';
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(content: Text('สร้างคำสั่งสำเร็จ: $ids')),
           );
@@ -436,7 +447,7 @@ class _HomeuserState extends State<Homeuser> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _orange, width: 1.2),
+                      borderSide: BorderSide(color: _orange, width: 1.2),
                     ),
                   ),
                 ),
@@ -466,7 +477,7 @@ class _HomeuserState extends State<Homeuser> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _orange, width: 1.2),
+                      borderSide: BorderSide(color: _orange, width: 1.2),
                     ),
                   ),
                 ),
@@ -491,7 +502,7 @@ class _HomeuserState extends State<Homeuser> {
                     ),
                     focusedBorder: OutlineInputBorder(
                       borderRadius: BorderRadius.circular(12),
-                      borderSide: const BorderSide(color: _orange, width: 1.2),
+                      borderSide: BorderSide(color: _orange, width: 1.2),
                     ),
                   ),
                 ),
@@ -573,8 +584,7 @@ class _HomeuserState extends State<Homeuser> {
                     itemBuilder: (context, index) {
                       final it = _cart[index];
                       final thumb = (it.photoBase64 != null)
-                          ? _bytesFromBase64(
-                              it.photoBase64!) // ✅ พรีวิวจาก base64
+                          ? _bytesFromBase64(it.photoBase64!)
                           : null;
                       return Container(
                         padding: const EdgeInsets.all(12),
